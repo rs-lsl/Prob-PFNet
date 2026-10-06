@@ -69,11 +69,11 @@ class ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test(Dataset):
         self.era5_data = self.zarr_group_era5[file_list_era5[1]]
         self.zarr_group_qpe = zarr.open(file_list_qpe[0], mode='r')
         self.qpe_data = self.zarr_group_qpe[file_list_qpe[1]]
-        self.zarr_group_rqi = zarr.open(file_list_rqi[0], mode='r')
-        self.rqi_data = self.zarr_group_rqi[file_list_rqi[1]]
-        self.full_time_coords = self.zarr_group_rqi['coords/full_time'][:]
-        print('len(self.full_time_coords)', len(self.full_time_coords))
-        print('self.rqi_data', self.rqi_data.shape)
+        # self.zarr_group_rqi = zarr.open(file_list_rqi[0], mode='r')
+        # self.rqi_data = self.zarr_group_rqi[file_list_rqi[1]]
+        # self.full_time_coords = self.zarr_group_rqi['coords/full_time'][:]
+        # print('len(self.full_time_coords)', len(self.full_time_coords))
+        # print('self.rqi_data', self.rqi_data.shape)
         # print(self.full_time_coords[:10])
         # print(self.full_time_coords[-10:])
 
@@ -81,7 +81,9 @@ class ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test(Dataset):
 
         self.full_series = full_series
         self.time_embed = time_embed
-        self.index_sample = train_index_sample
+
+        self.index_sample = [108044, 110264, 116816, 119768]
+        print('self.index_sample', self.index_sample)
         self.bs, self.seg_len, self.lon_len, self.lat_len, self.seg_size = bs, seg_len, lon_len, lat_len, seg_size
         self.ch_num = 48
         self.time_inte = time_inte
@@ -94,16 +96,13 @@ class ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test(Dataset):
         self.sample_lat_size = hr_shape[0] - seg_size[0]# + 1
         self.sample_lon_size = hr_shape[1] - seg_size[1]# + 1
 
-        # 计算缩放比例
         self.scale_i = hr_shape[0] / lr_shape[0]  # 1200 / 97 ≈ 12.371
         self.scale_j = hr_shape[1] / lr_shape[1]  # 2300 / 185 ≈ 12.432
 
         self.era5_seg_size = (int(self.seg_size[0] / self.scale_i)+1, int(self.seg_size[1] / self.scale_j)+1)
 
-        # 步长：seg_size 的一半
         stride_h, stride_w = args.crop_stride_test[0], args.crop_stride_test[1]
 
-        # 预计算所有滑窗起始索引
         self.test_indices = []
         self.test_indices_era5 = []
         # self.test_indices_dem = []
@@ -111,9 +110,6 @@ class ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test(Dataset):
             for lon_idx in range(self.args.lon_dismiss[0], self.sample_lon_size-self.args.lon_dismiss[1], stride_w):
                 self.test_indices.append((lat_idx, lon_idx))
                 self.test_indices_era5.append(self.hr_to_lr_index(lat_idx, lon_idx))
-                # self.test_indices_dem.append(self.lr_to_hr_index(lat_idx, lon_idx))
-        # print(self.test_indices)
-        # self.init_lat_lon()
 
     def init_lat_lon(self):
         # 边界范围
@@ -139,106 +135,52 @@ class ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test(Dataset):
         return (lr_i, lr_j)
 
     def __getitem__(self, idx):
-        # idx = idx * self.sample_inte
         idx_sam = self.index_sample[idx]
-        # rand_idx = (self.idx // self.bs) % len(self.time_inte)
-        # rand_inte = self.time_inte[rand_idx]
 
         indices = slice(idx_sam, idx_sam + self.seg_len) # 40s one epoch
-        if self.args.pure_test == 0:
-            indices_in_len_val = slice(idx_sam, idx_sam + self.in_len_val)  # 40s one epoch  in_len_val
-        else:
-            indices_in_len_val = slice(idx_sam, idx_sam + self.in_len_val)  # 40s one epoch
-        # radar_data_tmp = self.radar_data[indices_in_len_val]   # 尝试直接在这里用随机空间索引
-        # era5_data_tmp = self.era5_data[indices_in_len_val]  # 尝试直接在这里用随机空间索引
+        indices_in_len_val = slice(idx_sam, idx_sam + self.in_len_val)  # 40s one epoch
         qpe_data_tmp = self.qpe_data[indices]  # 尝试直接在这里用随机空间索引
-        # print(radar_data_tmp.shape)
-        # print(era5_data_tmp.shape)
-        # print(qpe_data_tmp.shape)
-        # print(self.full_series[idx_sam+self.in_len_val-1])
-        target_full = self.full_series[idx_sam+self.in_len_val].strftime("%m%d%H").encode('utf-8')
-        # print(target_full)
-        time_idx = np.where(self.full_time_coords == target_full)[0][0]
-        # print(time_idx)
-        indices_rqi = slice(time_idx, time_idx + self.seg_len - self.in_len_val)  # 40s one epoch
-        rqi_data_tmp = self.rqi_data[indices_rqi]
 
         time_embedding = np.array(
             [self.time_embed[i] for i in range(idx_sam, idx_sam + self.seg_len)])
 
-        # self.idx = self.idx + 1
-
         radar_data_out = np.array([self.radar_data[indices_in_len_val, :, lat_idx+self.border_tar[0]:lat_idx+self.seg_size[0]-self.border_tar[0],
                                    lon_idx+self.border_tar[1]:lon_idx+self.seg_size[1]-self.border_tar[1]] for (lat_idx, lon_idx) in self.test_indices])
         era5_data_out = np.array([self.era5_data[indices_in_len_val, :, lat_idx:lat_idx+self.era5_seg_size[0], lon_idx:lon_idx+self.era5_seg_size[1]] for (lat_idx, lon_idx) in self.test_indices_era5])
-        if self.args.pure_test == 0:
-            # if evaluate_map_figure, 注释rqi_data_tmp
-            # rqi_data_tmp = rqi_data_tmp[:, None, ...]
-            # rqi_data_tmp = np.array(
-            #     [rqi_data_tmp[:, lat_idx + self.border_tar[0]:lat_idx + self.seg_size[0] - self.border_tar[0],
-            #      lon_idx + self.border_tar[1]:lon_idx + self.seg_size[1] - self.border_tar[1]] for (lat_idx, lon_idx) in
-            #      self.test_indices])
-            qpe_data_out = np.array([qpe_data_tmp[:, :, lat_idx+self.border_tar[0]:lat_idx+self.seg_size[0]-self.border_tar[0],
-                                     lon_idx+self.border_tar[1]:lon_idx+self.seg_size[1]-self.border_tar[1]] for (lat_idx, lon_idx) in self.test_indices])
-        else:
-            qpe_data_out = np.array([qpe_data_tmp[:self.in_len_val, :,
-                                     lat_idx + self.border_tar[0]:lat_idx + self.seg_size[0] - self.border_tar[0],
-                                     lon_idx + self.border_tar[1]:lon_idx + self.seg_size[1] - self.border_tar[1]] for
-                                     (lat_idx, lon_idx) in self.test_indices])
-            # rqi_data_out = np.array(
-        # rqi_data_out = np.array(
-        #     [rqi_data_tmp[:, lat_idx + self.border_tar[0]:lat_idx + self.seg_size[0] - self.border_tar[0],
-        #      lon_idx + self.border_tar[1]:lon_idx + self.seg_size[1] - self.border_tar[1]] for (lat_idx, lon_idx) in
-        #      self.test_indices])
-        # coords_data_out = np.array([self.geo_coords[:, lat_idx+self.border_tar[0]:lat_idx + self.seg_size[0]-self.border_tar[0],
-        #                             lon_idx+self.border_tar[1]:lon_idx + self.seg_size[1]-self.border_tar[1]] for (lat_idx, lon_idx) in self.test_indices])
 
-        # print(radar_data_out.shape)
-        # print(era5_data_out.shape)
-        # print(qpe_data_out.shape)
-        # print(coords_data_out.shape)
-        # era5_idx = self.hr_to_lr_index(random_lat_idx)
-        return qpe_data_tmp, radar_data_out, era5_data_out, qpe_data_out, np.transpose(time_embedding), rqi_data_tmp#, coords_data_out#, rand_idx
+        qpe_data_out = np.array([qpe_data_tmp[:self.in_len_val, :,
+                                 lat_idx + self.border_tar[0]:lat_idx + self.seg_size[0] - self.border_tar[0],
+                                 lon_idx + self.border_tar[1]:lon_idx + self.seg_size[1] - self.border_tar[1]] for
+                                 (lat_idx, lon_idx) in self.test_indices])
+
+        return qpe_data_tmp, radar_data_out, era5_data_out, qpe_data_out, np.transpose(time_embedding)  #, coords_data_out#, rand_idx
 
     def __len__(self):
-        return len(self.index_sample) #// self.sample_inte
+        return len(self.index_sample)
 
 
 def load_ERA5_nexrad_mrms_qpe_2001_2017_usa_2km(batch_size, val_batch_size, test_batch_size, lon_len, lat_len,
                                                      L1_data_path, era5_data_path, mrms_qpe_path, rqi_path, file_path_dem, num_workers=4,
                            in_shape=[10, 1, 64, 64], distributed=False, use_augment=False, use_prefetcher=False, drop_last=False,
                            test=False, data_root_dir=None, args=None):
-    # print(args.L1_shape)
-    from datetime import datetime
 
-    # hours = (datetime(2018, 1, 1) - datetime(2001, 1, 1)).days * 24
-    # print(hours)
-    # exit()
+    from datetime import datetime
     file_name_L1, file_name_era5, file_name_qpe, file_name_rqi = 'Reflectivity', 'data', 'precipitation', 'data'
-    time_embed = np.load(os.path.join(data_root_dir, 'radar/3D_NEXRAD/2016_2017_1hour/', "time_emb_2001_2030_cos_sin.npy"))[hours:]
-    # print(time_embed.shape)
-    # exit()
-    # path = os.path.join(L1_data_path, "nexrad_2022/nexrad-2022-upload.hdf5")
-    # data = h5py.File(path, 'r')
-    image_size = in_shape[-1] if in_shape is not None else 64
+    time_embed = np.load("/data02/lisl/time_emb_2008_2030_cos_sin.npy")
     ch_num_13 = 8
-    # seg_len = args.input_time_length + args.aft_seq_length_train
     start_time = datetime(2008, 1, 1, 0, 0, 0)  # *****************
     end_time = datetime(2021, 12, 31, 23, 0, 0)  # *****************
     interval = 60
     full_series = list(generate_time_series(start_time, end_time, interval))
 
     index_file = np.arange(len(full_series))
-    # index_sample = [np.arange(len(full_series)) for _ in range(len(args.pred_len)+1)]
     index_sample = np.arange(len(full_series))
 
     if args.test:
         start_date0 = datetime(2008, 1, 1)
         end_date0 = datetime(2017, 1, 1, 0)
-        # 计算时间差
         time_difference = end_date0 - start_date0
-        # 将天数转换为小时
-        # total_seconds() 返回总秒数，然后除以3600得到小时
+
         total_hours0 = int(time_difference.total_seconds() / 3600) - 1
 
     gap0, gap1 = 0, total_hours0
@@ -251,11 +193,10 @@ def load_ERA5_nexrad_mrms_qpe_2001_2017_usa_2km(batch_size, val_batch_size, test
     start_index2 = start_index2 if start_index2 > 0 else 0  # 如果索引 <= 0，则设为 0
     index_sample[start_index2:(gap1 + args.sample_inte)] = -1  # *****************
 
-    b = args.in_len_val + args.aft_seq_length_test  # 去掉后20%的最后b个索引
-    c = args.in_len_val + args.aft_seq_length_val  # 去掉后20%的最后b个索引
+    b = args.in_len_val + args.aft_seq_length_test
+    c = args.in_len_val + args.aft_seq_length_val
     # import numpy as np
 
-    # 生成连续的数字索引
     start_date = np.datetime64('2008-01-01T00:00')
     end_date = np.datetime64('2021-12-31T23:00')
     time_range = np.arange(start_date, end_date + np.timedelta64(60, 'm'), np.timedelta64(60, 'm'))
@@ -340,7 +281,7 @@ def load_ERA5_nexrad_mrms_qpe_2001_2017_usa_2km(batch_size, val_batch_size, test
                                            shuffle=False, is_training=False,
                                            pin_memory=True, drop_last=drop_last,
                                            num_workers=4,
-                                           distributed=False, use_prefetcher=True, return_num=6)
+                                           distributed=False, use_prefetcher=True, return_num=5)
         # val_set = ERA5_dataset(np.asarray(result_var_val), np.asarray(time_var_val))  # **********************  overlap_step
         test_set = ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test((L1_data_path, file_name_L1),
                                                                           (era5_data_path, file_name_era5),
@@ -358,7 +299,7 @@ def load_ERA5_nexrad_mrms_qpe_2001_2017_usa_2km(batch_size, val_batch_size, test
                                         shuffle=False, is_training=False,
                                         pin_memory=True, drop_last=drop_last,
                                         num_workers=4,
-                                        distributed=False, use_prefetcher=True, return_num=6)  # set distributed=False to assign the value to the fuxi framework
+                                        distributed=False, use_prefetcher=True, return_num=5)  # set distributed=False to assign the value to the fuxi framework
         del val_set, test_set
     # print('load time: ',time.time() - time0)
 

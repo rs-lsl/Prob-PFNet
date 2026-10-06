@@ -4,8 +4,6 @@ import numpy as np
 # import xarray as xr
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -17,7 +15,7 @@ import torch.distributed as dist
 import time
 from parser import create_parser
 
-from DDP import init_distributed_mode, cleanup, train_one_epoch, evaluate, reduce_value, clip_grads, init_distributed_mode_old
+from DDP import init_distributed_mode, cleanup, reduce_value, clip_grads, init_distributed_mode_old
 
 from utils0 import create_folder_if_not_exists, copy_all_files, save_command
 
@@ -25,7 +23,7 @@ if __name__ == '__main__':
 
     import numcodecs.blosc
 
-    numcodecs.blosc.set_nthreads(1)  # 解压单线程，并行度靠多 worker，不要靠线程池
+    numcodecs.blosc.set_nthreads(1)
     time0 = time.time()
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -39,20 +37,18 @@ if __name__ == '__main__':
     if torch.cuda.is_available() is False:
         raise EnvironmentError("not find GPU device for training")
 
-    init_distributed_mode(args)
+    init_distributed_mode_old(args)
     rank = args.rank
     batch_size = args.batch_size
     print('lr_multiply_ratio:', np.sqrt(args.world_size))
     import faulthandler, signal
 
     faulthandler.register(signal.SIGUSR1, all_threads=True)
-    # 获得gpu
     local_rank = torch.distributed.get_rank()
     torch.cuda.set_device(local_rank)
     global device
     device = torch.device("cuda", local_rank)
 
-    # 我们只让进程0输出信息，进程1不执行这一部分。这样进程1就不会输出信息，避免重复输出。
     if rank == 0:
         save_command()
         print('args.world_size', args.world_size)
@@ -79,27 +75,19 @@ if __name__ == '__main__':
         args.in_len_val = 5
         args.shrink = 1 if args.input_time_length > args.pre_seq_length else 0
         args.time_emb_num = 42  # mounth/day/hour/minute
-        # args.val_dataset_step = 1  # the step to unfold the val dataset
-        # args.test_dataset_step = 2  # the step to unfold the test dataset
 
-        # args.pred_tp = False
         args.resume_epoch = None  # None
-        #         rand_inte = 1
-        #         rand_idx = 0
-        # self.seg_len = 1
         args.compute_mean_std = False
-        # args.epoch_auto = 50
-        # args.bs_auto = 36
+
 
         args.fss_neighborhood = 3  # 9×9 空间窗口，必须是奇数
         args.forecast_inte = 6
         args.lat_dismiss = [0, 0]
         args.lon_dismiss = [0, 0]
-        # args.std_dec_fac = 20  # 1
-        args.search_resolution = 100  # from 0.49 to 0.99
-        args.eval_idx = 0  # 0对应测试集，1对应训练集
-        # 初始训练时修改bbs和bs需要在命令行修改学校率，后续增加迭代次数时只修改bs，且不需要手动修改学习率
-        # 往a800迁移时修改bs后，需要同时修改base_batch_size=batch_size和对应的学习率
+
+        args.search_resolution = 100
+        args.eval_idx = 0
+
         args.SNR_scale = 0.01
         args.rqi_thre = 0.5
         args.log_eps = 1.0
@@ -116,17 +104,16 @@ if __name__ == '__main__':
         args.sample_inte = 1
         args.ori_thre = np.min(args.threholds)  # to classify if the pixel is with raining in the original data
         print('args.ori_thre', args.ori_thre)
-        # args.rain_min = 0.1  # to classify if the pixel is with raining in the transformer data
-        args.border_tar = [256, 256]  # 输入的ERA5要包含更大区域，这个是对应的高分辨率的区域增量
-        args.tar_size = [512 + 2 * args.border_tar[0], 512 + 2 * args.border_tar[1]]  # seg size
-        args.crop_stride_test = [1200 - 512 - 256 - 256 - 1, 250]  # 175, 250
-        # if args.pure_test == 0:
-        #     args.crop_stride_test = [512, 512]
-        args.H_d, args.W_d = 128, 128  # hidden state size ****************  96,96
+
+        args.border_tar = [256, 256]
+        args.tar_size = [512 + 2 * args.border_tar[0], 512 + 2 * args.border_tar[1]]
+        args.crop_stride_test = [1200 - 512 - 256 - 256 - 1, 250]
+
+        args.H_d, args.W_d = 128, 128
         args.trainset_ratio = 0.8
         args.valset_ratio = 0.1
-        args.weight_decay = 1e-1  # ***********  overfitting
-        args.drop = 0.05  # ***********  overfitting    0.1
+        args.weight_decay = 1e-1
+        args.drop = 0.05
 
         args.time_inte = [1, 2, 4]
         args.iter_len_epoch = [0, 300, 500]  # ************
@@ -136,13 +123,6 @@ if __name__ == '__main__':
         assert len(args.pred_len) == len(args.iter_len_epoch) - 1
         assert args.aft_seq_length_test >= max(args.pred_len) * max(args.time_inte)
 
-        # if args.pure_test == 0:
-        #     args.aft_seq_length_test = 12
-        # args.sched = 'multistep'  # cosine: mae 11.56  ssim 0.216
-        # # self.args.decay_epochs = 10
-        # args.decay_milestones = list(range(10, 100, 10))
-        # args.decay_rate = 0.5
-        # args.channel_num = 7
         hid_S, hid_T, N_S, N_T = 24, 256, 3, 3  # hid_S and N_S**************
         args.hid_S = hid_S
         args.hid_const = 4
@@ -151,10 +131,10 @@ if __name__ == '__main__':
         results_dir = os.path.join('/data02/lisl/results/', 'results_' + args.dataname)
         num_workers = 6
         L1_data_path = os.path.join(data_root_dir,
-                                    'radar/3D_NEXRAD/nexrad_2008-2021_single_chunk_fliped.zarr')
+                                    'radar/3D_NEXRAD/nexrad_2008-2021_single_chunk.zarr')
         era5_data_path = os.path.join(data_root_dir,
                                       'era5_post/era5_usa_2008_2021.zarr')  # _with_new_vars
-        mrms_qpe_path = os.path.join(data_root_dir, 'MRMS/qpe_2018-2021_4-8month-last10.zarr')
+        mrms_qpe_path = os.path.join(data_root_dir, 'MRMS/qpe_2008-2021.zarr')
         dem_path = os.path.join(data_root_dir,
                                 'DEM/American_Dem/American_clip_region_2km.npy')
         cp_dir = os.path.join(results_dir, 'checkpoints/', args.ex_name)
@@ -195,7 +175,7 @@ if __name__ == '__main__':
                                                         val_batch_size=args.val_batch_size,
                                                         test_batch_size=args.test_batch_size, lon_len=256, lat_len=256,
                                                         L1_data_path=L1_data_path, era5_data_path=era5_data_path,
-                                                        mrms_qpe_path=mrms_qpe_path, rqi_path=rqi_path,
+                                                        mrms_qpe_path=mrms_qpe_path, rqi_path=None,
                                                         file_path_dem=dem_path,
                                                         num_workers=num_workers, distributed=True,
                                                         use_prefetcher=True, test=args.test,
