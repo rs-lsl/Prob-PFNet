@@ -1,3 +1,3 @@
 # Prob-PFNet
 
-The code of paper "Accurate and Efficient Probabilistic Precipitation Forecasting by Capturing and Utilizing the Evolutionary Uncertainty of Atmospheric Features".
+The code of paper "Learning the Distribution Evolution of Latent Atmospheric Features for Probabilistic Precipitation Forecasting".
