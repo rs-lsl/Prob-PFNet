@@ -16,7 +16,7 @@ pip install tqdm pandas matplotlib opencv-python lpips scikit-image numba zarr x
 
 (3) Modify the paths of the dataset and each necessary file.
 
-(4) Run the script: torchrun --nproc_per_node=1 --master_port=55568 main_latent_prob.py --epoch 500 --ex_name '260601_usa-precip-prob-baseline' --batch_size 7 --val_batch_size 1 --test 1 --clip_grad 0 --eval_iter 1000 --save_iter 10 --test_epoch 100
+(4) Run the script: torchrun --nproc_per_node=1 --master_port=55568 main_latent_prob.py --epoch 500 --ex_name '260601_usa-precip-prob-baseline' --batch_size 7 --val_batch_size 1 --test 1 --clip_grad 0 --eval_iter 1000 --save_iter 10 --test_epoch 500
 
 Then the predicted results will be generated in the qualitative_maps directory.
 
