@@ -1,4 +1,4 @@
-# Prob-PFNet
+<img width="983" height="65" alt="image" src="https://github.com/user-attachments/assets/90c1b0f7-3d21-4ee1-aa2f-2369d29efcae" /># Prob-PFNet
 
 The code of paper "Learning the Distribution Evolution of Latent Atmospheric Features for Probabilistic Precipitation Forecasting".
 
@@ -6,11 +6,11 @@ To get the predicted results:
 
 (1) Create a new environment by:
 
-conda create -n py310torch251 gdal python=3.10
+conda create -n py310torch251 python=3.10
 
-pip install torch==2.5.1
+pip install torch==2.5.1 
 
-pip install tqdm pandas matplotlib opencv-python lpips scikit-image numba zarr xarray
+pip install tqdm==4.67.3 pandas==2.3.3 matplotlib==3.10.8 scikit-image==0.25.2 zarr==2.18.3 xarray==2025.6.1 cartopy==0.26.0 joblib==1.5.3 numcodecs==0.14.1
 
 (2) Download the pretrained weight and datasets from: [https://www.kaggle.com/datasets/shuangliangli123/precip_era5_nexrad_mrms_prob](https://www.kaggle.com/datasets/shuangliangli123/precip-era5-nexrad-mrms-prob)
 
