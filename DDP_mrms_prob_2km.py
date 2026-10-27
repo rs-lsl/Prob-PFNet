@@ -550,8 +550,8 @@ class Pred_model(nn.Module):
         os.makedirs(save_dirs['3d_prob'], exist_ok=True)
         os.makedirs(save_dirs['decision'], exist_ok=True)
 
-        dpi_all = 400
-        dpi_all_tile = 200
+        dpi_all = 1000
+        dpi_all_tile = 400
 
         lead_time_font = 18
         row_label_font = 18
