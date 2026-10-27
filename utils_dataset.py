@@ -7,7 +7,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import torch.utils.data
 import numpy as np
-from osgeo import gdal
+#from osgeo import gdal
 import numpy as np
 import torch
 import torch.nn.functional as F

@@ -50,7 +50,7 @@ if __name__ == '__main__':
     device = torch.device("cuda", local_rank)
 
     if rank == 0:
-        save_command()
+        #save_command()
         print('args.world_size', args.world_size)
         print('rank', rank)
         print('device', device)
@@ -127,20 +127,21 @@ if __name__ == '__main__':
         args.hid_S = hid_S
         args.hid_const = 4
         loss_type_adv = 'binary_cross_entropy'
-        data_root_dir = '/data02/lisl/'
-        results_dir = os.path.join('/data02/lisl/results/', 'results_' + args.dataname)
+        data_root_dir = '/data'
+        args.data_root_dir = data_root_dir
+        results_dir = '/results'
         num_workers = 6
         L1_data_path = os.path.join(data_root_dir,
-                                    'radar/3D_NEXRAD/nexrad_2008-2021_single_chunk.zarr')
+                                    'nexrad_2008-2021_single_chunk.zarr')
         era5_data_path = os.path.join(data_root_dir,
-                                      'era5_post/era5_usa_2008_2021.zarr')  # _with_new_vars
-        mrms_qpe_path = os.path.join(data_root_dir, 'MRMS/qpe_2008-2021.zarr')
+                                      'era5_usa_2008_2021.zarr')  # _with_new_vars
+        mrms_qpe_path = os.path.join(data_root_dir, 'qpe_2008-2021.zarr')
         dem_path = os.path.join(data_root_dir,
-                                'DEM/American_Dem/American_clip_region_2km.npy')
-        cp_dir = os.path.join(results_dir, 'checkpoints/', args.ex_name)
+                                'American_clip_region_2km.npy')
+        cp_dir = results_dir
         args.save_dir = os.path.join(results_dir, 'logs', args.ex_name)
         if rank == 0:
-            create_folder_if_not_exists(cp_dir)
+            # create_folder_if_not_exists(cp_dir)
             create_folder_if_not_exists(os.path.join(results_dir, 'optimal_thre', args.ex_name))
             create_folder_if_not_exists(os.path.join(results_dir, 'logs', args.ex_name))
             create_folder_if_not_exists(os.path.join(results_dir, 'quanti_figures', args.ex_name))

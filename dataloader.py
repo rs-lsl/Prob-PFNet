@@ -141,6 +141,11 @@ class ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test(Dataset):
         indices_in_len_val = slice(idx_sam, idx_sam + self.in_len_val)  # 40s one epoch
         qpe_data_tmp = self.qpe_data[indices]  # 尝试直接在这里用随机空间索引
 
+        time_str = self.full_series[idx_sam + self.in_len_val - 1]
+        if not isinstance(time_str, str):
+            time_str = time_str.strftime('%Y-%m-%d-%Hh')
+        print('Initialization time (UTC)', time_str)
+
         time_embedding = np.array(
             [self.time_embed[i] for i in range(idx_sam, idx_sam + self.seg_len)])
 
@@ -153,7 +158,7 @@ class ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test(Dataset):
                                  lon_idx + self.border_tar[1]:lon_idx + self.seg_size[1] - self.border_tar[1]] for
                                  (lat_idx, lon_idx) in self.test_indices])
 
-        return qpe_data_tmp, radar_data_out, era5_data_out, qpe_data_out, np.transpose(time_embedding)  #, coords_data_out#, rand_idx
+        return qpe_data_tmp, radar_data_out, era5_data_out, qpe_data_out, np.transpose(time_embedding), time_str  #, coords_data_out#, rand_idx
 
     def __len__(self):
         return len(self.index_sample)
@@ -166,7 +171,7 @@ def load_ERA5_nexrad_mrms_qpe_2001_2017_usa_2km(batch_size, val_batch_size, test
 
     from datetime import datetime
     file_name_L1, file_name_era5, file_name_qpe, file_name_rqi = 'Reflectivity', 'data', 'precipitation', 'data'
-    time_embed = np.load("/data02/lisl/time_emb_2008_2030_cos_sin.npy")
+    time_embed = np.load(os.path.join(args.data_root_dir, "time_emb_2008_2030_cos_sin.npy"))
     ch_num_13 = 8
     start_time = datetime(2008, 1, 1, 0, 0, 0)  # *****************
     end_time = datetime(2021, 12, 31, 23, 0, 0)  # *****************
@@ -279,9 +284,9 @@ def load_ERA5_nexrad_mrms_qpe_2001_2017_usa_2km(batch_size, val_batch_size, test
         dataloader_vali, _ = create_loader(val_set,
                                            batch_size=val_batch_size,
                                            shuffle=False, is_training=False,
-                                           pin_memory=True, drop_last=drop_last,
-                                           num_workers=4,
-                                           distributed=False, use_prefetcher=True, return_num=5)
+                                           pin_memory=False, drop_last=drop_last,
+                                           num_workers=0,
+                                           distributed=False, use_prefetcher=False, return_num=6)
         # val_set = ERA5_dataset(np.asarray(result_var_val), np.asarray(time_var_val))  # **********************  overlap_step
         test_set = ERA5_Nexrad_mrms_qpe_usa_2km_dataset_test((L1_data_path, file_name_L1),
                                                                           (era5_data_path, file_name_era5),
@@ -297,9 +302,9 @@ def load_ERA5_nexrad_mrms_qpe_2001_2017_usa_2km(batch_size, val_batch_size, test
         dataloader_test, _ = create_loader(test_set,
                                         batch_size=val_batch_size,
                                         shuffle=False, is_training=False,
-                                        pin_memory=True, drop_last=drop_last,
-                                        num_workers=4,
-                                        distributed=False, use_prefetcher=True, return_num=5)  # set distributed=False to assign the value to the fuxi framework
+                                        pin_memory=False, drop_last=drop_last,
+                                        num_workers=0,
+                                        distributed=False, use_prefetcher=False, return_num=6)  # set distributed=False to assign the value to the fuxi framework
         del val_set, test_set
     # print('load time: ',time.time() - time0)
 

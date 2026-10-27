@@ -25,7 +25,7 @@ import pickle
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from utils0 import compute_crps_fully_vectorized
-from utils_dataset import write_img_gdal
+#from utils_dataset import write_img_gdal
 import heapq
 from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 import shutil
@@ -34,7 +34,7 @@ from utils_dataset import create_loader, read_img
 from tqdm import tqdm
 import math
 from torch.cuda.amp import autocast, GradScaler
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 from scipy.ndimage import uniform_filter
 import os
 import numpy as np
@@ -208,10 +208,6 @@ class Pred_model(nn.Module):
         self.rain_list = []
         self.norain_list = []
 
-        self.writer = SummaryWriter(
-            log_dir=os.path.join(self.results_dir, 'tensorboard', self.args.ex_name)
-        )
-
 
         self.mean_accumulator = None
         self.total_samples = 0
@@ -290,7 +286,7 @@ class Pred_model(nn.Module):
     def init_lat_weight(self):
         if not self.args.compute_mean_std:
             self.mean_std_era5 = torch.from_numpy(
-                np.load(os.path.join(self.results_dir, 'mean_std_era5_391.npy'))).type(
+                np.load(os.path.join(self.args.data_root_dir, 'mean_std_era5_391.npy'))).type(
                 torch.float32).to(self.device)
             self.mean_std_era5[1] = torch.from_numpy(np.maximum(self.mean_std_era5[1].cpu().numpy(),
                                                                 1e-2)).type(
@@ -299,7 +295,7 @@ class Pred_model(nn.Module):
     def test(self, mode='val', test_epoch=500):
 
         state_dict = torch.load(
-            os.path.join(self.cp_dir, "weight.pth"))
+            os.path.join(self.args.data_root_dir, "weight.pth"))
         if self.args.dist:
             try:
                 self.model.module.load_state_dict(state_dict)
@@ -321,8 +317,7 @@ class Pred_model(nn.Module):
         #                      'optimal_prob_thresholds_epoch' + str(test_epoch) + '_' + str(i) + '.npy'),
         #         optimal_prob_thresholds)
 
-        self.optimal_prob_thresholds = np.load(os.path.join(self.results_dir, 'optimal_thre',
-                             self.args.ex_name, 'optimal_prob_thresholds_epoch'+str(test_epoch)+ '_' + str(0) + '.npy'))
+        self.optimal_prob_thresholds = np.load(os.path.join(self.args.data_root_dir, 'optimal_prob_thresholds_epoch'+str(test_epoch)+ '_' + str(0) + '.npy'))
         self.evaluate(
             metric_list=['mae', 'rmse'], mode=mode, test_epoch=test_epoch#, thre=i  # the validation dataset
         )
@@ -386,7 +381,7 @@ class Pred_model(nn.Module):
         CRPS_res_list = []
         fss_neighborhood = getattr(self.args, 'fss_neighborhood', 5)
         with torch.no_grad():
-            for step, (qpe_data_full, L1_data, era5_data, qpe_data, time_data) in enumerate(dataloader):
+            for step, (qpe_data_full, L1_data, era5_data, qpe_data, time_data, time_str) in enumerate(dataloader):
                 if step % 1 == 0:
                     print(step)
 
@@ -492,7 +487,7 @@ class Pred_model(nn.Module):
                     labels=label_plot,  # [1, 24, 1, H, W]
                     optimal_prob_thresholds=self.optimal_prob_thresholds,  # TODO: 换成你实际计算/加载的变量，形状 [24, 6]
                     hrrr_mean=None,  # 没有 HRRR 预报就传 None
-                    sample_idx=0,
+                    sample_idx=str(time_str[0]),
                     time_indices=[23, 11, 5, 0],
                     display_hours=[24, 12, 6, 1],
                     thresholds=[0.2, 1, 2, 4, 8, 20],
@@ -503,7 +498,7 @@ class Pred_model(nn.Module):
                 if self.args.empty_cache:
                     torch.cuda.empty_cache()
 
-                del labels, pred_mean, pred_std, valid_mask
+                del labels, pred_mean, pred_std
                 import gc
                 gc.collect()
                 torch.cuda.empty_cache()
@@ -535,7 +530,7 @@ class Pred_model(nn.Module):
         def select_sample(arr):
             arr = np.squeeze(arr)  # [B,T,1,H,W] -> [T,H,W]（B=1 时）
             if arr.ndim == 4:  # B>1 时 -> 取第 sample_idx 个样本
-                arr = arr[sample_idx]
+                arr = arr[0]
             return arr
 
         mean_s = select_sample(to_np(pred_mean))
@@ -555,8 +550,8 @@ class Pred_model(nn.Module):
         os.makedirs(save_dirs['3d_prob'], exist_ok=True)
         os.makedirs(save_dirs['decision'], exist_ok=True)
 
-        dpi_all = 1000
-        dpi_all_tile = 500
+        dpi_all = 400
+        dpi_all_tile = 200
 
         lead_time_font = 18
         row_label_font = 18
@@ -887,7 +882,7 @@ class Pred_model(nn.Module):
 
         add_threshold_probability_legend(fig, rect=[0.15, 0.0, 0.70, 0.030])
 
-        fname = f'case_3d_prob_step{step}_sample{sample_idx}'
+        fname = f'case_3d_prob_init_time_UTC{sample_idx}'
         plt.savefig(os.path.join(save_dirs['3d_prob'], fname + '.png'), dpi=dpi_all,
                     bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
@@ -967,7 +962,7 @@ class Pred_model(nn.Module):
         cbar.set_ticks([0, 0.2, 1, 2, 4, 8, 20, 50])
         cbar.ax.tick_params(labelsize=14)
 
-        fname = f'case_decision_step{step}_sample{sample_idx}'
+        fname = f'case_decision_init_time_UTC{sample_idx}'
         plt.savefig(os.path.join(save_dirs['decision'], fname + '.png'), dpi=dpi_all,
                     bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
