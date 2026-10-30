@@ -12,7 +12,7 @@ pip install torch==2.5.1 (2.4.0 is also OK)
 
 pip install tqdm==4.67.3 pandas==2.3.3 matplotlib==3.10.8 scikit-image==0.25.2 zarr==2.18.3 xarray==2025.6.1 cartopy==0.26.0 joblib==1.5.3 numcodecs==0.14.1
 
-(2) Download the pretrained weight and datasets from: [https://www.kaggle.com/datasets/shuangliangli123/precip_era5_nexrad_mrms_prob](https://www.kaggle.com/datasets/shuangliangli123/precip-era5-nexrad-mrms-prob)
+(2) Download the pretrained weight and datasets from: [https://www.kaggle.com/datasets/shuangliangli123/precip_era5_nexrad_mrms_prob](https://www.kaggle.com/datasets/shuangliangli123/precip-era5-nexrad-mrms-prob) This link provides only a subset of the data. For additional test data, please download them from the official websites of the respective data sources (see Data availability in the paper).
 
 (3) Modify the paths of the dataset and each necessary file.
 
